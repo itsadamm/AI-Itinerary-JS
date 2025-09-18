@@ -1,0 +1,62 @@
+import OpenAI from "openai";
+
+export const runtime = "nodejs";
+
+export async function POST(req: Request) {
+  try {
+    const body = await req.json();
+    const {
+      travelPace,
+      interests,
+      budget,
+      travelStyle,
+      tripLength,
+      countries,
+      prioritizedCities,
+    } = body ?? {};
+
+    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
+
+    const system = `You are a travel planner. Produce a human-readable itinerary using EXACTLY this format:
+**Day 1: <Concise title>**
+- <activity 1>
+- <activity 2>
+...
+**Day 2: <Concise title>**
+- <activity>
+...
+Rules: 1) Use only "- " bullet lines under each day. 2) No extra commentary before or after. 3) Title case for day titles. 4) Generate exactly ${tripLength} days.`;
+
+    const user = `Preferences:
+- Pace: ${travelPace}
+- Interests: ${interests}
+- Budget: ${budget}
+- Style: ${travelStyle}
+- Trip length: ${tripLength} days
+- Countries: ${countries?.join(", ") || "(unspecified)"}
+- Prioritized cities: ${prioritizedCities?.join(", ") || "(unspecified)"}
+
+Please produce the itinerary in the required format.`;
+
+    const resp = await client.chat.completions.create({
+      model,
+      temperature: 0.7,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+    });
+
+    const text = resp.choices?.[0]?.message?.content ?? "";
+    return new Response(JSON.stringify({ text }), {
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (err: any) {
+    console.error(err);
+    return new Response(
+      JSON.stringify({ error: err?.message || "Unknown error" }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
+  }
+}
