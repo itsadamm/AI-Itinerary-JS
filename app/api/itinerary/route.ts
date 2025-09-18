@@ -18,6 +18,7 @@ export async function POST(req: Request) {
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
 
+    const safeDays = typeof tripLength === 'number' && tripLength > 0 ? tripLength : 7;
     const system = `You are a travel planner. Produce a human-readable itinerary using EXACTLY this format:
 **Day 1: <Concise title>**
 - <activity 1>
@@ -26,18 +27,18 @@ export async function POST(req: Request) {
 **Day 2: <Concise title>**
 - <activity>
 ...
-Rules: 1) Use only "- " bullet lines under each day. 2) No extra commentary before or after. 3) Title case for day titles. 4) Generate exactly ${tripLength} days.`;
+Rules: 1) Use only "- " bullet lines under each day. 2) No extra commentary before or after. 3) Title case for day titles. 4) Generate exactly ${safeDays} days.`;
 
-    const user = `Preferences:
-- Pace: ${travelPace}
-- Interests: ${interests}
-- Budget: ${budget}
-- Style: ${travelStyle}
-- Trip length: ${tripLength} days
-- Countries: ${countries?.join(", ") || "(unspecified)"}
-- Prioritized cities: ${prioritizedCities?.join(", ") || "(unspecified)"}
+    const user = `Preferences (any may be blank):
+- Pace: ${travelPace || "(unspecified)"}
+- Interests: ${(Array.isArray(interests) ? interests : (interests ? [interests] : []))?.join(", ") || "(unspecified)"}
+- Budget: ${budget || "(unspecified)"}
+- Style: ${travelStyle || "(unspecified)"}
+- Trip length: ${tripLength || "(unspecified)"} days
+- Countries: ${Array.isArray(countries) && countries.length ? countries.join(", ") : "(unspecified)"}
+- Prioritized cities: ${Array.isArray(prioritizedCities) && prioritizedCities.length ? prioritizedCities.join(", ") : "(unspecified)"}
 
-Please produce the itinerary in the required format.`;
+Please produce the itinerary in the required format. If fields are unspecified, infer reasonable defaults for the destination mix and pacing.`;
 
     const resp = await client.chat.completions.create({
       model,

@@ -15,6 +15,11 @@ export default function Page() {
   const [openCmd, setOpenCmd] = useState(false);
   const [history, setHistory] = useState<Day[][]>([]);
   const [future, setFuture] = useState<Day[][]>([]);
+  const [startDate, setStartDate] = useState<string | undefined>(undefined);
+  const [searchHint, setSearchHint] = useState<string | undefined>(undefined);
+  const [tripCountries, setTripCountries] = useState<string[]>([]);
+  const [tripEvents, setTripEvents] = useState<any[]>([]);
+  const [tripEventsLoading, setTripEventsLoading] = useState(false);
 
   function pushHistory(newDays: Day[]) {
     setHistory(h => [...h, days]);
@@ -34,6 +39,17 @@ export default function Page() {
       const parsed = parseItinerary(text);
       setHistory([]); setFuture([]);
       setDays(parsed);
+      setStartDate(prefs.startDate);
+      const hint = (prefs.prioritizedCities && prefs.prioritizedCities[0]) || (prefs.countries && prefs.countries[0]) || undefined;
+      setSearchHint(hint);
+      setTripCountries(prefs.countries || []);
+      try {
+        setTripEventsLoading(true);
+        const resp = await fetch('/api/events/summary', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ countries: prefs.countries || [], startDate: prefs.startDate, days: parsed.length }) })
+        const sum = await resp.json();
+        setTripEvents(sum?.events || []);
+      } catch {}
+      finally { setTripEventsLoading(false); }
     } finally { setLoading(false); }
   }
 
@@ -61,7 +77,7 @@ export default function Page() {
   }
 
   function downloadICS(){
-    const start = prompt("Trip start date (YYYY-MM-DD)? e.g., 2025-09-01");
+    const start = startDate || prompt("Trip start date (YYYY-MM-DD)? e.g., 2025-09-01");
     if (!start) return;
     try {
       const ics = buildICS(days, start);
@@ -92,14 +108,67 @@ export default function Page() {
         <div className="w-full max-w-4xl space-y-6">
           <div className="card p-6">
               <h1 className="text-3xl font-bold">Design your trip</h1>
-              <p className="text-white/70 mt-1">Tell it what kind of trip you want. Get a draft. Edit everything.</p>
+              <p className="text-ink/70 mt-1">Tell it what kind of trip you want. Get a draft. Edit everything.</p>
               <div className="mt-4">
                 <TripForm onGenerate={generate} />
-                {loading && <p className="mt-3">Generating…</p>}
+                {loading && (
+                  <div className="mt-3 flex items-center gap-2"><span className="spinner" /><span>Generating itinerary…</span></div>
+                )}
               </div>
           </div>
 
           {exportsBlock}
+
+          {days.length>0 && (
+            <div className="card p-4">
+              <div className="flex items-center justify-between">
+                <h2 className="font-bold">Trip Events (holidays, festivals)</h2>
+                {tripEventsLoading && <span className="spinner" />}
+              </div>
+              {!tripEventsLoading && tripEvents.length === 0 && (
+                <p className="text-sm opacity-70 mt-2">No notable events found for your countries/dates.</p>
+              )}
+              {!tripEventsLoading && tripEvents.length > 0 && (
+                <ul className="mt-2 space-y-2">
+                  {tripEvents.map((ev, idx) => {
+                    const date = ev.date as string | undefined;
+                    let dayIdx: number | null = null;
+                    if (date && startDate) {
+                      const d0 = new Date(startDate+'T00:00:00');
+                      const d1 = new Date(date+'T00:00:00');
+                      if (!Number.isNaN(d0.getTime()) && !Number.isNaN(d1.getTime())) {
+                        const diff = Math.round((d1.getTime()-d0.getTime())/86400000);
+                        if (diff>=0 && diff<days.length) dayIdx = diff;
+                      }
+                    }
+                    return (
+                      <li key={idx} className="flex items-center justify-between card p-2">
+                        <div className="text-sm">
+                          <div className="font-medium">{ev.name}</div>
+                          <div className="opacity-70">{ev.date || 'Unknown date'}{ev.city?` · ${ev.city}`:''}{ev.country?` · ${ev.country}`:''}</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {dayIdx!=null ? (
+                            <button className="btn-outline" onClick={() => {
+                              const d = [...days];
+                              d[dayIdx].activities.push({ id: crypto.randomUUID(), text: ev.name + (ev.city?` · ${ev.city}`:'') + (ev.date?` · ${ev.date}`:'') });
+                              setDays(d);
+                            }}>Add to Day {dayIdx+1}</button>
+                          ) : (
+                            <button className="btn-outline" onClick={() => {
+                              const d = [...days];
+                              d[0].activities.push({ id: crypto.randomUUID(), text: ev.name + (ev.city?` · ${ev.city}`:'') + (ev.date?` · ${ev.date}`:'') });
+                              setDays(d);
+                            }}>Add to Day 1</button>
+                          )}
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </div>
+          )}
 
           {days.length > 0 && (
             <div className="space-y-4">
@@ -107,7 +176,7 @@ export default function Page() {
                 <button className="btn" onClick={refine}>Refine with AI</button>
                 <button className="btn-outline" onClick={() => setOpenCmd(true)}>Open Command Palette <span className="ml-2"><kbd>⌘K</kbd></span></button>
               </div>
-              <ItineraryEditor value={days} onChange={(d)=>pushHistory(d)} />
+              <ItineraryEditor value={days} onChange={(d)=>pushHistory(d)} startDate={startDate} searchHint={searchHint} />
               <details className="card p-4">
                 <summary className="cursor-pointer">Show raw AI text</summary>
                 <pre className="mt-2 whitespace-pre-wrap text-sm">{raw}</pre>

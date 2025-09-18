@@ -5,22 +5,20 @@
 /* MapLibre global styles */
 /* Removed MapLibre global styles as map feature is disabled */
 
-/* Futuristic theme tokens */
+/* Clean advanced theme: white, green, orange */
 :root {
-  --bg: #0B0F1A; /* deep space */
-  --text: #E6EAF2; /* off-white */
-  --muted: #AEB7C7;
-  --accent: #7C5CFF; /* electric purple */
-  --accent-2: #00D4FF; /* neon cyan */
-  --card: rgba(255,255,255,0.06);
-  --border: rgba(255,255,255,0.12);
+  --bg: #FFFFFF;
+  --text: #0F172A; /* slate-900 */
+  --muted: #64748B; /* slate-500 */
+  --accent: #16A34A; /* green-600 */
+  --accent-2: #F97316; /* orange-500 */
+  --card: #FFFFFF;
+  --border: rgba(2,6,23,0.08);
 }
 
 html, body { height: 100%; }
 body {
-  background: radial-gradient(1200px 800px at 20% -10%, rgba(124,92,255,0.25), transparent 60%),
-              radial-gradient(1000px 700px at 120% 120%, rgba(0,212,255,0.18), transparent 60%),
-              var(--bg);
+  background: var(--bg);
   color: var(--text);
 }
 
@@ -29,8 +27,8 @@ body {
 .btn {
   @apply inline-flex items-center justify-center rounded-xl px-4 py-2 font-medium transition-all;
   background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
-  color: #0B0F1A;
-  box-shadow: 0 8px 30px rgba(124,92,255,0.35), inset 0 1px 0 rgba(255,255,255,0.25);
+  color: white;
+  box-shadow: 0 6px 24px rgba(22,163,74,0.25);
 }
 .btn:hover { filter: brightness(1.05); transform: translateY(-1px); }
 .btn:active { transform: translateY(0); }
@@ -39,25 +37,44 @@ body {
   @apply inline-flex items-center justify-center rounded-xl px-4 py-2 font-medium border transition-colors;
   border-color: var(--border);
   color: var(--text);
-  background: rgba(255,255,255,0.03);
+  background: #F8FAFC;
 }
-.btn-outline:hover { border-color: rgba(124,92,255,0.6); color: #fff; }
+.btn-outline:hover { border-color: rgba(249,115,22,0.5); color: var(--text); }
 
 .card {
-  @apply rounded-2xl border;
-  background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+  @apply rounded-2xl border bg-white;
   border-color: var(--border);
-  box-shadow: 0 8px 30px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.06);
-  backdrop-filter: blur(10px);
+  box-shadow: 0 10px 30px rgba(2,6,23,0.06);
 }
 
 .input {
-  @apply w-full rounded-xl px-3 py-2 bg-transparent border outline-none text-[15px];
+  @apply w-full rounded-xl px-3 py-2 bg-white border outline-none text-[15px];
   border-color: var(--border);
   color: var(--text);
 }
-.input:focus { box-shadow: 0 0 0 3px rgba(124,92,255,0.25); border-color: rgba(124,92,255,0.8); }
+.input:focus { box-shadow: 0 0 0 3px rgba(22,163,74,0.18); border-color: rgba(22,163,74,0.6); }
 
 .label { @apply text-sm font-medium; color: var(--muted); }
 
-kbd { @apply inline-block rounded border px-1.5 py-0.5 text-xs; background: rgba(255,255,255,0.06); border-color: var(--border); }
+kbd { @apply inline-block rounded border px-1.5 py-0.5 text-xs; background: #F8FAFC; border-color: var(--border); }
+
+/* Animated loaders */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.spinner {
+  width: 18px; height: 18px; border-radius: 9999px;
+  border: 2px solid rgba(0,0,0,0.15);
+  border-top-color: var(--accent);
+  animation: spin 0.8s linear infinite;
+  display: inline-block;
+}
+
+@keyframes bounceDots {
+  0%, 80%, 100% { transform: scale(0); }
+  40% { transform: scale(1.0); }
+}
+.dots { display: inline-flex; gap: 4px; align-items: center; }
+.dots > span { width: 6px; height: 6px; border-radius: 9999px; background: var(--accent-2); animation: bounceDots 1.4s infinite ease-in-out both; }
+.dots > span:nth-child(1) { animation-delay: -0.32s; }
+.dots > span:nth-child(2) { animation-delay: -0.16s; }
