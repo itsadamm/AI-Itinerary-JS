@@ -7,6 +7,8 @@ import CommandPalette from "@/components/CommandPalette";
 import type { Day } from "@/types";
 import { parseItinerary, toRenderableText } from "@/lib/parseItinerary";
 import { buildICS } from "@/lib/ics";
+import { renderPrintableHTML } from "@/lib/print";
+import { buildItineraryPDF, type TripMeta } from "@/lib/pdf";
 
 export default function Page() {
   const [days, setDays] = useState<Day[]>([]);
@@ -16,10 +18,7 @@ export default function Page() {
   const [history, setHistory] = useState<Day[][]>([]);
   const [future, setFuture] = useState<Day[][]>([]);
   const [startDate, setStartDate] = useState<string | undefined>(undefined);
-  const [searchHint, setSearchHint] = useState<string | undefined>(undefined);
-  const [tripCountries, setTripCountries] = useState<string[]>([]);
-  const [tripEvents, setTripEvents] = useState<any[]>([]);
-  const [tripEventsLoading, setTripEventsLoading] = useState(false);
+  const [lastPrefs, setLastPrefs] = useState<TripPrefs | undefined>(undefined);
 
   function pushHistory(newDays: Day[]) {
     setHistory(h => [...h, days]);
@@ -40,16 +39,7 @@ export default function Page() {
       setHistory([]); setFuture([]);
       setDays(parsed);
       setStartDate(prefs.startDate);
-      const hint = (prefs.prioritizedCities && prefs.prioritizedCities[0]) || (prefs.countries && prefs.countries[0]) || undefined;
-      setSearchHint(hint);
-      setTripCountries(prefs.countries || []);
-      try {
-        setTripEventsLoading(true);
-        const resp = await fetch('/api/events/summary', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ countries: prefs.countries || [], startDate: prefs.startDate, days: parsed.length }) })
-        const sum = await resp.json();
-        setTripEvents(sum?.events || []);
-      } catch {}
-      finally { setTripEventsLoading(false); }
+      setLastPrefs(prefs);
     } finally { setLoading(false); }
   }
 
@@ -91,12 +81,88 @@ export default function Page() {
     }
   }
 
+  function encodeShareData(obj: any): string {
+    try { return btoa(unescape(encodeURIComponent(JSON.stringify(obj)))) } catch { return '' }
+  }
+  function decodeShareData(s: string): any | null {
+    try { return JSON.parse(decodeURIComponent(escape(atob(s)))) } catch { return null }
+  }
+
+  async function shareItinerary() {
+    const payload = { days, startDate }
+    const data = encodeShareData(payload)
+    const url = `${location.origin}${location.pathname}?data=${data}`
+    try {
+      // Prefer native share when available
+      if ((navigator as any).share) {
+        await (navigator as any).share({ title: 'Trip Itinerary', url })
+        return
+      }
+    } catch {}
+    try {
+      await navigator.clipboard.writeText(url)
+      alert('Link copied to clipboard!')
+    } catch {
+      prompt('Copy this link:', url)
+    }
+  }
+
+  function exportPDF() {
+    const html = renderPrintableHTML(days, startDate)
+    const w = window.open('about:blank', '_blank')
+    if (!w) return
+    w.document.open(); w.document.write(html); w.document.close();
+    w.focus();
+    setTimeout(()=>{ try { w.print(); } catch {} }, 300)
+  }
+
+  function exportDoc() {
+    const html = renderPrintableHTML(days, startDate)
+    const blob = new Blob([html], { type: 'application/msword' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = 'itinerary.doc'; a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  async function shareItinerary() {
+    // Build a simple PDF on the client and share it (where supported)
+    const meta: TripMeta = { countries: lastPrefs?.countries, travelPace: lastPrefs?.travelPace, startDate }
+    const bytes = buildItineraryPDF(days, meta)
+    const file = new File([bytes], 'itinerary.pdf', { type: 'application/pdf' })
+    try {
+      if ((navigator as any).canShare && (navigator as any).canShare({ files: [file] }) && (navigator as any).share) {
+        await (navigator as any).share({ files: [file], title: 'Trip Itinerary', text: 'Trip Itinerary' })
+        return
+      }
+    } catch {}
+    // Fallback: download the PDF
+    const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }))
+    const a = document.createElement('a')
+    a.href = url; a.download = 'itinerary.pdf'; a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  // Load from shared link if present
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const data = params.get('data')
+    if (data) {
+      const parsed = decodeShareData(data)
+      if (parsed && parsed.days) {
+        setDays(parsed.days)
+        setStartDate(parsed.startDate)
+      }
+    }
+  }, [])
+
   const exportsBlock = (
     <div className="card p-4">
-      <h2 className="font-bold mb-2">Exports</h2>
+      <h2 className="font-bold mb-2">Share & Export</h2>
       <div className="flex gap-2">
-        <button className="btn" onClick={downloadJSON}>Download JSON</button>
-        <button className="btn-outline" onClick={downloadICS}>Export ICS</button>
+        <button className="btn" onClick={shareItinerary}>Share</button>
+        <button className="btn-outline" onClick={exportPDF}>Export PDF</button>
+        <button className="btn-outline" onClick={exportDoc}>Export Doc</button>
       </div>
     </div>
   );
@@ -119,64 +185,13 @@ export default function Page() {
 
           {exportsBlock}
 
-          {days.length>0 && (
-            <div className="card p-4">
-              <div className="flex items-center justify-between">
-                <h2 className="font-bold">Trip Events (holidays, festivals)</h2>
-                {tripEventsLoading && <span className="spinner" />}
-              </div>
-              {!tripEventsLoading && tripEvents.length === 0 && (
-                <p className="text-sm opacity-70 mt-2">No notable events found for your countries/dates.</p>
-              )}
-              {!tripEventsLoading && tripEvents.length > 0 && (
-                <ul className="mt-2 space-y-2">
-                  {tripEvents.map((ev, idx) => {
-                    const date = ev.date as string | undefined;
-                    let dayIdx: number | null = null;
-                    if (date && startDate) {
-                      const d0 = new Date(startDate+'T00:00:00');
-                      const d1 = new Date(date+'T00:00:00');
-                      if (!Number.isNaN(d0.getTime()) && !Number.isNaN(d1.getTime())) {
-                        const diff = Math.round((d1.getTime()-d0.getTime())/86400000);
-                        if (diff>=0 && diff<days.length) dayIdx = diff;
-                      }
-                    }
-                    return (
-                      <li key={idx} className="flex items-center justify-between card p-2">
-                        <div className="text-sm">
-                          <div className="font-medium">{ev.name}</div>
-                          <div className="opacity-70">{ev.date || 'Unknown date'}{ev.city?` · ${ev.city}`:''}{ev.country?` · ${ev.country}`:''}</div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {dayIdx!=null ? (
-                            <button className="btn-outline" onClick={() => {
-                              const d = [...days];
-                              d[dayIdx].activities.push({ id: crypto.randomUUID(), text: ev.name + (ev.city?` · ${ev.city}`:'') + (ev.date?` · ${ev.date}`:'') });
-                              setDays(d);
-                            }}>Add to Day {dayIdx+1}</button>
-                          ) : (
-                            <button className="btn-outline" onClick={() => {
-                              const d = [...days];
-                              d[0].activities.push({ id: crypto.randomUUID(), text: ev.name + (ev.city?` · ${ev.city}`:'') + (ev.date?` · ${ev.date}`:'') });
-                              setDays(d);
-                            }}>Add to Day 1</button>
-                          )}
-                        </div>
-                      </li>
-                    )
-                  })}
-                </ul>
-              )}
-            </div>
-          )}
-
           {days.length > 0 && (
             <div className="space-y-4">
               <div className="flex gap-2">
                 <button className="btn" onClick={refine}>Refine with AI</button>
                 <button className="btn-outline" onClick={() => setOpenCmd(true)}>Open Command Palette <span className="ml-2"><kbd>⌘K</kbd></span></button>
               </div>
-              <ItineraryEditor value={days} onChange={(d)=>pushHistory(d)} startDate={startDate} searchHint={searchHint} />
+              <ItineraryEditor value={days} onChange={(d)=>pushHistory(d)} startDate={startDate} />
               <details className="card p-4">
                 <summary className="cursor-pointer">Show raw AI text</summary>
                 <pre className="mt-2 whitespace-pre-wrap text-sm">{raw}</pre>
