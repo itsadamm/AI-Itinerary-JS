@@ -58,6 +58,87 @@ body {
 
 kbd { @apply inline-block rounded border px-1.5 py-0.5 text-xs; background: #F8FAFC; border-color: var(--border); }
 
+/* Landing hero */
+.hero { position: relative; background: #FFFFFF; }
+.hero .hero-bg {
+  position: absolute; inset: -20%; pointer-events: none;
+  /* Emphasize orange first, then green; scale to viewport */
+  background:
+    radial-gradient(1200px 800px at 70% 20%, rgba(249,115,22,0.30), transparent 60%),
+    radial-gradient(1000px 700px at 20% 80%, rgba(22,163,74,0.20), transparent 60%),
+    radial-gradient(900px 900px at 50% -10%, rgba(253,186,116,0.18), transparent 60%),
+    linear-gradient(180deg, rgba(255,255,255,0.0) 0%, rgba(255,255,255,0.0) 100%);
+  filter: blur(26px);
+  animation: bgShift 18s ease-in-out infinite alternate;
+  transform: translate3d(calc(var(--mx, 0) * 6px), calc(var(--my, 0) * -6px), 0) scale(1.02);
+}
+.hero .pattern {
+  position: absolute; inset: 0; pointer-events: none; opacity: 0.12;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'%3E%3Cg fill='none' stroke='%2316A34A' stroke-opacity='0.35' stroke-width='0.5'%3E%3Cpath d='M0 80h160M80 0v160'/%3E%3C/g%3E%3Cg fill='none' stroke='%23F97316' stroke-opacity='0.25' stroke-width='0.5'%3E%3Ccircle cx='80' cy='80' r='20'/%3E%3Ccircle cx='80' cy='80' r='60'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: 480px 480px; background-position: center;
+  animation: patternDrift 24s linear infinite alternate;
+  transform: translate3d(calc(var(--mx, 0) * -4px), calc(var(--my, 0) * 4px), 0) scale(1.005);
+}
+.hero .hero-shell { position: relative; z-index: 1; padding: 86px 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+.hero .hero-card {
+  border: 1px solid var(--border); border-radius: 28px; padding: 36px 40px;
+  width: min(820px, 92vw); background: rgba(255,255,255,0.9);
+  box-shadow: 0 28px 80px rgba(2,6,23,0.12); backdrop-filter: blur(8px);
+  text-align: center;
+  animation: floatIn 800ms cubic-bezier(.2,.7,.2,1) both;
+  transform: perspective(1000px) rotateX(calc(var(--my, 0) * -0.6deg)) rotateY(calc(var(--mx, 0) * 0.6deg));
+}
+.hero .hero-card::before {
+  content: ""; position: absolute; inset: -1px; border-radius: inherit; padding: 1px;
+  background: linear-gradient(135deg, #16A34A, #F97316, #16A34A);
+  background-size: 200% 200%; animation: borderShift 6s linear infinite;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+}
+.hero h1 { font-size: clamp(38px, 6vw, 56px); line-height: 1.08; letter-spacing: -0.02em; margin: 0 0 12px; }
+.hero h1.shimmer { color: var(--text); }
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  .hero h1.shimmer { background: linear-gradient(90deg, #0F172A, #16A34A, #F97316, #0F172A); background-size: 200% 100%;
+    -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent;
+    animation: shimmer 4s ease-in-out infinite; }
+}
+.hero .subtitle { color: #475569; font-size: 16px; margin-bottom: 18px; }
+.hero .cta { display:flex; gap:12px; margin-top: 20px; justify-content: center; }
+.hero .features { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin-top: 14px; }
+.hero .feature-chip { display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius: 9999px; border: 1px solid var(--border); background:#F8FAFC; font-size: 13px; color:#0F172A; will-change: transform; transition: transform 160ms ease; transform-style: preserve-3d; }
+.hero .feature-chip:hover { transform: translate3d(calc(var(--cpx, 0) * 2px), calc(var(--cpy, 0) * 2px), 0) rotateX(calc(var(--cpy, 0) * -2deg)) rotateY(calc(var(--cpx, 0) * 2deg)); }
+.hero .scroll-indicator { position:absolute; left:50%; bottom:18px; transform:translateX(-50%); color:#64748B; font-size:12px; display:flex; align-items:center; gap:8px; }
+.hero .scroll-indicator .dot { width:6px; height:6px; border-radius:9999px; background:#F97316; animation: bounceDots 1.4s infinite ease-in-out both; }
+.hero .scroll-indicator .dot:nth-child(2){ animation-delay: -0.16s }
+.hero .scroll-indicator .dot:nth-child(3){ animation-delay: -0.32s }
+
+/* Staggered entrance */
+.fade-up { opacity: 0; transform: translateY(10px); animation: fadeUp 700ms cubic-bezier(.2,.7,.2,1) forwards; }
+.d1 { animation-delay: 80ms }
+.d2 { animation-delay: 160ms }
+.d3 { animation-delay: 240ms }
+.d4 { animation-delay: 320ms }
+.d5 { animation-delay: 400ms }
+.d6 { animation-delay: 480ms }
+
+@keyframes bgShift { 0% { transform: translateY(0) scale(1); } 100% { transform: translateY(-12px) scale(1.03); } }
+@keyframes floatIn { from { opacity:0; transform: translateY(16px) scale(.98); } to { opacity:1; transform: translateY(0) scale(1); } }
+@keyframes patternDrift { 0% { background-position: 50% 50%; } 100% { background-position: 48% 52%; } }
+@keyframes fadeUp { from { opacity:0; transform: translateY(8px);} to { opacity:1; transform: translateY(0);} }
+@keyframes borderShift { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }
+@keyframes shimmer { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }
+
+/* CTA hover emphasis */
+.btn:hover { transform: translateY(-2px) scale(1.02); }
+.btn-outline:hover { transform: translateY(-1px) scale(1.01); }
+
+/* Mobile chip reordering for visual balance */
+@media (max-width: 640px) {
+  .hero .features .feature-chip:nth-child(1) { order: 2; }
+  .hero .features .feature-chip:nth-child(2) { order: 1; }
+  .hero .features .feature-chip:nth-child(3) { order: 3; }
+}
+
 /* Animated loaders */
 @keyframes spin {
   to { transform: rotate(360deg); }

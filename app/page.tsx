@@ -7,7 +7,7 @@ import CommandPalette from "@/components/CommandPalette";
 import type { Day } from "@/types";
 import { parseItinerary, toRenderableText } from "@/lib/parseItinerary";
 import { buildICS } from "@/lib/ics";
-import { renderPrintableHTML } from "@/lib/print";
+import { renderPrintableHTML, type PrintMeta } from "@/lib/print";
 import { buildItineraryPDF, type TripMeta } from "@/lib/pdf";
 
 export default function Page() {
@@ -19,6 +19,8 @@ export default function Page() {
   const [future, setFuture] = useState<Day[][]>([]);
   const [startDate, setStartDate] = useState<string | undefined>(undefined);
   const [lastPrefs, setLastPrefs] = useState<TripPrefs | undefined>(undefined);
+  const [scrollFade, setScrollFade] = useState(1);
+  const heroRef = useState<HTMLElement | null>(null)[0] as any;
 
   function pushHistory(newDays: Day[]) {
     setHistory(h => [...h, days]);
@@ -108,7 +110,8 @@ export default function Page() {
   }
 
   function exportPDF() {
-    const html = renderPrintableHTML(days, startDate)
+    const meta: PrintMeta = { startDate, countries: lastPrefs?.countries, travelPace: lastPrefs?.travelPace }
+    const html = renderPrintableHTML(days, startDate, meta)
     const w = window.open('about:blank', '_blank')
     if (!w) return
     w.document.open(); w.document.write(html); w.document.close();
@@ -117,7 +120,8 @@ export default function Page() {
   }
 
   function exportDoc() {
-    const html = renderPrintableHTML(days, startDate)
+    const meta: PrintMeta = { startDate, countries: lastPrefs?.countries, travelPace: lastPrefs?.travelPace }
+    const html = renderPrintableHTML(days, startDate, meta)
     const blob = new Blob([html], { type: 'application/msword' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -154,6 +158,74 @@ export default function Page() {
         setStartDate(parsed.startDate)
       }
     }
+    const onScroll = () => {
+      const y = window.scrollY || document.documentElement.scrollTop || 0
+      const f = Math.max(0, 1 - y / 160)
+      setScrollFade(f)
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    onScroll()
+    // Mouse parallax for hero
+    const onMove = (e: MouseEvent) => {
+      const w = window.innerWidth || 1
+      const h = window.innerHeight || 1
+      const x = (e.clientX / w) - 0.5
+      const y = (e.clientY / h) - 0.5
+      document.documentElement.style.setProperty('--mx', (x * 10).toFixed(3))
+      document.documentElement.style.setProperty('--my', (y * 10).toFixed(3))
+    }
+    // Smooth pointer tracking via rAF
+    let tx = 0, ty = 0, cx = 0, cy = 0, rafId: number | null = null
+    const onMoveSmooth = (e: MouseEvent) => {
+      const w = window.innerWidth || 1
+      const h = window.innerHeight || 1
+      tx = ((e.clientX / w) - 0.5) * 10
+      ty = ((e.clientY / h) - 0.5) * 10
+    }
+    const loop = () => {
+      // simple lerp
+      cx += (tx - cx) * 0.08
+      cy += (ty - cy) * 0.08
+      document.documentElement.style.setProperty('--mx', cx.toFixed(3))
+      document.documentElement.style.setProperty('--my', cy.toFixed(3))
+      rafId = requestAnimationFrame(loop)
+    }
+    window.addEventListener('mousemove', onMoveSmooth, { passive: true })
+    rafId = requestAnimationFrame(loop)
+
+    // Feature chip hover parallax
+    const attachChipParallax = () => {
+      document.querySelectorAll('.feature-chip').forEach((el) => {
+        const chip = el as HTMLElement
+        let px = 0, py = 0, tx2 = 0, ty2 = 0, rid: number | null = null, over = false
+        const update = () => {
+          px += (tx2 - px) * 0.15; py += (ty2 - py) * 0.15
+          chip.style.setProperty('--cpx', (px).toFixed(3))
+          chip.style.setProperty('--cpy', (py).toFixed(3))
+          if (over) rid = requestAnimationFrame(update)
+        }
+        chip.addEventListener('mousemove', (ev) => {
+          const rect = chip.getBoundingClientRect()
+          const nx = ((ev.clientX - rect.left) / rect.width) - 0.5
+          const ny = ((ev.clientY - rect.top) / rect.height) - 0.5
+          tx2 = nx; ty2 = ny
+          if (!over) { over = true; rid = requestAnimationFrame(update) }
+        }, { passive: true })
+        chip.addEventListener('mouseleave', () => {
+          over = false; tx2 = 0; ty2 = 0
+          if (rid) cancelAnimationFrame(rid)
+          chip.style.setProperty('--cpx', '0'); chip.style.setProperty('--cpy', '0')
+        })
+      })
+    }
+    // Defer to next frame so DOM is painted
+    requestAnimationFrame(attachChipParallax)
+
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('mousemove', onMoveSmooth)
+      if (rafId) cancelAnimationFrame(rafId)
+    }
   }, [])
 
   const exportsBlock = (
@@ -170,9 +242,44 @@ export default function Page() {
   return (
     <main>
       <Navbar />
+      <section className="hero">
+        <div className="hero-bg"></div>
+        <div className="pattern"></div>
+        <div className="container hero-shell">
+          <div className="hero-card">
+            <div style={{position:'absolute',top:12,left:14,display:'flex',alignItems:'center',gap:8}} className="fade-up d1">
+              <svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <linearGradient id="lg" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+                    <stop stopColor="#16A34A"/>
+                    <stop offset="1" stopColor="#F97316"/>
+                  </linearGradient>
+                </defs>
+                <circle cx="16" cy="16" r="14" stroke="url(#lg)" strokeWidth={2} fill="white"/>
+                <path d="M10 17l3 3 9-9" stroke="url(#lg)" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              <span style={{fontSize:12,color:'#64748B'}}>AI Itinerary</span>
+            </div>
+            <h1 className="fade-up d2">Design Your Next Great Trip</h1>
+            <p className="subtitle fade-up d3">Fast, flexible, beautiful itineraries — tailored to your pace and interests.</p>
+            <div className="features">
+              <span className="feature-chip fade-up d3">⚡ Instant draft</span>
+              <span className="feature-chip fade-up d4">🧩 Drag & refine</span>
+              <span className="feature-chip fade-up d5">📄 Share & export</span>
+            </div>
+            <div className="cta">
+              <a href="#planner" className="btn fade-up d6">Start Planning</a>
+            </div>
+          </div>
+          <a href="#planner" className="scroll-indicator" style={{opacity: scrollFade}}>
+            <span>Scroll</span>
+            <span className="dot"></span><span className="dot"></span><span className="dot"></span>
+          </a>
+        </div>
+      </section>
       <div className="container py-6 flex justify-center">
         <div className="w-full max-w-4xl space-y-6">
-          <div className="card p-6">
+          <div id="planner" className="card p-6">
               <h1 className="text-3xl font-bold">Design your trip</h1>
               <p className="text-ink/70 mt-1">Tell it what kind of trip you want. Get a draft. Edit everything.</p>
               <div className="mt-4">
@@ -182,8 +289,7 @@ export default function Page() {
                 )}
               </div>
           </div>
-
-          {exportsBlock}
+          <div id="exports">{exportsBlock}</div>
 
           {days.length > 0 && (
             <div className="space-y-4">
